@@ -1,13 +1,18 @@
-
-
 import logging
+from typing import List, Tuple
+
+from models import NormalizedFirm, NormalizedOffice
 
 
-def _str_ok(v):
+def _str_ok(v) -> bool:
     return isinstance(v, str) and v.strip() != ""
 
 
-def validate_records(firms, offices):
+def validate_records(
+    firms: List[NormalizedFirm],
+    offices: List[NormalizedOffice],
+) -> Tuple[List[NormalizedFirm], List[NormalizedOffice]]:
+
     valid_firms = []
     valid_offices = []
 
@@ -34,8 +39,10 @@ def validate_records(firms, offices):
 
     logging.info(
         "Validation → %d/%d firms, %d/%d offices",
-        len(valid_firms), len(firms),
-        len(valid_offices), len(offices),
+        len(valid_firms),
+        len(firms),
+        len(valid_offices),
+        len(offices),
     )
 
     return valid_firms, valid_offices

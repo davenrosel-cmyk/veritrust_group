@@ -1,18 +1,26 @@
-
-
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Tuple
+
+from models import (
+    RawFirmRecord,
+    RawOfficeRecord,
+    NormalizedFirm,
+    NormalizedOffice,
+    NormalizedAddress,
+)
+from constants import HEAD_OFFICE
 
 
-def _clean(value):
+def _clean(value) -> str:
     if not value:
         return ""
     return " ".join(str(value).split())
 
 
-def _build_address(office):
+def _build_address(office: RawOfficeRecord) -> NormalizedAddress:
     street = " ".join(
-        p for p in [
+        p
+        for p in [
             office.get("Address1"),
             office.get("Address2"),
             office.get("Address3"),
@@ -29,49 +37,49 @@ def _build_address(office):
     }
 
 
-def normalise_records(records: List[dict]) -> Tuple[List[Dict], List[Dict]]:
+def normalise_records(
+    records: List[RawFirmRecord],
+) -> Tuple[List[NormalizedFirm], List[NormalizedOffice]]:
     """
-    Convert SRA records to canonical Tier‑0 firm + office lists.
+    Convert SRA raw records → canonical firm + office lists (Tier‑0)
     """
-    firms = []
-    offices = []
+    firms: List[NormalizedFirm] = []
+    offices: List[NormalizedOffice] = []
 
     for rec in records:
-        firm_id = str(rec.get("Id") or "").strip()
-        name = _clean(rec.get("PracticeName"))
-        status = _clean(rec.get("AuthorisationStatus"))
-        sra_num = str(rec.get("SraNumber") or "").strip()
-
+        firm_id = _clean(rec.get("Id"))
         if not firm_id:
             logging.warning("Skipping record with no Id")
             continue
 
-        firm = {
+        firm: NormalizedFirm = {
             "sraId": firm_id,
-            "sraNumber": sra_num,
-            "name": name,
-            "regulatoryStatus": status,
-            "authorisationType": rec.get("AuthorisationType"),
-            "organisationType": rec.get("OrganisationType"),
-            "companyRegNo": rec.get("CompanyRegNo"),
-            "constitution": rec.get("Constitution"),
+            "sraNumber": _clean(rec.get("SraNumber")),
+            "name": _clean(rec.get("PracticeName")),
+            "regulatoryStatus": _clean(rec.get("AuthorisationStatus")),
+            "authorisationType": _clean(rec.get("AuthorisationType")),
+            "organisationType": _clean(rec.get("OrganisationType")),
+            "companyRegNo": _clean(rec.get("CompanyRegNo")),
+            "constitution": _clean(rec.get("Constitution")),
         }
 
         firms.append(firm)
 
         for office in rec.get("Offices") or []:
-            office_id = str(office.get("OfficeId") or "").strip()
+            office_id = _clean(office.get("OfficeId"))
             if not office_id:
                 continue
 
-            addr = _build_address(office)
+            address = _build_address(office)
 
-            offices.append({
-                "officeId": office_id,
-                "firmSraId": firm_id,
-                "isHeadOffice": office.get("OfficeType") == "HO",
-                "address": addr,
-            })
+            offices.append(
+                {
+                    "officeId": office_id,
+                    "firmSraId": firm_id,
+                    "isHeadOffice": office.get("OfficeType") == HEAD_OFFICE,
+                    "address": address,
+                }
+            )
 
     logging.info("Normalisation → %d firms, %d offices", len(firms), len(offices))
     return firms, offices
