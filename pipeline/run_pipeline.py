@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-
+from jsonld_builder import build_jsonld_dataset  
 from fetch_sra import fetch_sra_from_file
 from normalize import normalise_records
 from validate import validate_records
@@ -32,6 +32,16 @@ def run():
 
     (out_dir / "firms.json").write_text(json.dumps(valid_firms, indent=2))
     (out_dir / "offices.json").write_text(json.dumps(valid_offices, indent=2))
+
+    build_jsonld_dataset(
+        valid_firms,
+        valid_offices,
+        Path("output/firms.jsonld"),
+        Path("output/dataset.jsonld"),
+    )
+    logging.info("✔ Phase 2: JSON-LD files written.")
+
+
 
     logging.info("Pipeline completed successfully.")
 
