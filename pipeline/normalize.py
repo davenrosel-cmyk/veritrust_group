@@ -1,7 +1,7 @@
 import logging
 from typing import List, Tuple
 
-from models import (
+from pipeline.models.raw_models import (
     RawFirmRecord,
     RawOfficeRecord,
     NormalizedFirm,

@@ -2,12 +2,14 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from jsonld_builder import build_jsonld_dataset  
+
 from fetch_sra import fetch_sra_from_file
 from normalize import normalise_records
 from validate import validate_records
 from constants import INPUT_FILENAME, RAW_OUTPUT_DIR, NORMALIZED_OUTPUT_DIR
+from manifest_builder import build_manifest_and_sign
 
+from jsonld_builder import build_and_save_jsonld
 
 def run():
     logging.basicConfig(level=logging.INFO)
@@ -33,13 +35,22 @@ def run():
     (out_dir / "firms.json").write_text(json.dumps(valid_firms, indent=2))
     (out_dir / "offices.json").write_text(json.dumps(valid_offices, indent=2))
 
-    build_jsonld_dataset(
+    build_and_save_jsonld(
         valid_firms,
         valid_offices,
         Path("output/firms.jsonld"),
         Path("output/dataset.jsonld"),
     )
     logging.info("✔ Phase 2: JSON-LD files written.")
+
+    build_manifest_and_sign(
+    firms_path=out_dir / "firms.jsonld",
+    dataset_path=out_dir / "dataset.jsonld",
+    manifest_output_path=out_dir / "manifest.jsonld",
+)
+
+    logging.info("✔ manifest.jsonld written.")
+
 
 
 

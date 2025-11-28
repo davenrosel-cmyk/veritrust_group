@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List
 
-from models import RawFirmRecord
+from pipeline.models.raw_models import RawFirmRecord
 
 
 def _load_local_file(path: Path) -> dict:

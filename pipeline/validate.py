@@ -1,7 +1,7 @@
 import logging
 from typing import List, Tuple
 
-from models import NormalizedFirm, NormalizedOffice
+from pipeline.models.raw_models import NormalizedFirm, NormalizedOffice
 
 
 def _str_ok(v) -> bool:
