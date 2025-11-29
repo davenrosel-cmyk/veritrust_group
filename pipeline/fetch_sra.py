@@ -40,45 +40,44 @@ def _load_local_file(path: Path) -> dict:
 
 
 
-def fetch_sra_from_file(input_file: Path, save_path: Path) -> List[RawFirmRecord]:
+def fetch_sra_from_file(input_file: Path, save_path: Path) -> list[dict]:
     """
     Load local SRA response (response.txt).
-    Saves the raw JSON atomically.
-    Returns list of Organisations[].
+    Supports:
+        A) {"Organisations": [ ... ]}
+        B) [ ... ]   (test fixture / simplified files)
+
+    Saves raw JSON atomically to save_path.
     """
+
     logging.info("Loading SRA dataset from: %s", input_file)
 
     data = _load_local_file(input_file)
-    organisations = data.get("Organisations", [])
 
-    logging.info("Loaded %d organisations", len(organisations))
+    # A) If dict with Organisations
+    if isinstance(data, dict):
+        organisations = data.get("Organisations", [])
 
-    # --- Phase 3: Atomic Write ---
-    tmp_path = save_path.with_suffix(save_path.suffix + ".tmp")
+        if not isinstance(organisations, list):
+            raise ValueError("Organisations is not a list in SRA input file")
 
-    try:
-        save_path.parent.mkdir(parents=True, exist_ok=True)
+    # B) If test provided a list directly
+    elif isinstance(data, list):
+        organisations = data
 
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+    else:
+        raise ValueError(f"Unexpected SRA input format: {type(data)}")
 
-        tmp_path.replace(save_path)
+    # Atomic save
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = save_path.with_suffix(save_path.suffix + ".tmp")
 
-        logging.info(f"✔ Atomically written raw SRA file → {save_path}")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(organisations, f, ensure_ascii=False, indent=2)
 
-    except Exception as e:
-        logging.error(f"❌ Failed to write raw SRA file {save_path}: {e}")
-
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except Exception:
-                pass
-
-        raise
+    tmp.replace(save_path)
 
     return organisations
-
 
 
 

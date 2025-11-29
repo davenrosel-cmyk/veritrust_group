@@ -5,7 +5,18 @@
   ],
   "@id": "https://api.veritrustgroup.org/manifest/tier0-sra",
   "@type": "Dataset",
-  "name": "VeriTrust Tier-0 SRA Manifest",
-  "dateModified": "2025-11-29T13:30:29.111198+00:00",
-  "distribution": []
+  "name": "VeriTrust Tier‑0 SRA Manifest",
+  "dateModified": "2025-11-29T20:10:52.946829+00:00",
+  "distribution": [
+    {
+      "path": "firms.jsonld",
+      "sha256": "0c267c6ebf17295bc2ba644b8b6db37436e8ed20eb550d35cd5f774aaeaeebd8",
+      "sizeInBytes": 54630213
+    },
+    {
+      "path": "dataset.jsonld",
+      "sha256": "4f647396d76dc2a3c23b111774b5ff14eef6267088b8e2c87098f8bbb05b6e8c",
+      "sizeInBytes": 628
+    }
+  ]
 }

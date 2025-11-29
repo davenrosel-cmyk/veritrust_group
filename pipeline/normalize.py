@@ -12,7 +12,7 @@ Includes:
 
 import logging
 from typing import List, Tuple
-
+from pathlib import Path
 from pipeline.models.raw_models import (
     RawFirmRecord,
     RawOfficeRecord,
@@ -20,8 +20,11 @@ from pipeline.models.raw_models import (
     NormalizedOffice,
     NormalizedAddress,
 )
-from constants import HEAD_OFFICE
+# from constants import HEAD_OFFICE
+from pipeline.utils.config_loader import load_config
 
+cfg = load_config()
+HEAD_OFFICE = cfg.get("head_office_code", "HEAD OFFICE")
 
 def _clean(value) -> str:
     if not value:
@@ -64,18 +67,18 @@ def normalise_records(
             logging.warning("Skipping record with no Id")
             continue
 
-        firm: NormalizedFirm = {
-            "sraId": firm_id,
-            "sraNumber": _clean(rec.get("SraNumber")),
-            "name": _clean(rec.get("PracticeName")),
-            "regulatoryStatus": _clean(rec.get("AuthorisationStatus")),
-            "authorisationType": _clean(rec.get("AuthorisationType")),
-            "organisationType": _clean(rec.get("OrganisationType")),
-            "companyRegNo": _clean(rec.get("CompanyRegNo")),
-            "constitution": _clean(rec.get("Constitution")),
-        }
-
-        firms.append(firm)
+        firms.append(
+            {
+                "sraId": firm_id,
+                "sraNumber": _clean(rec.get("SraNumber")),
+                "name": _clean(rec.get("PracticeName")),
+                "regulatoryStatus": _clean(rec.get("AuthorisationStatus")),
+                "authorisationType": _clean(rec.get("AuthorisationType")),
+                "organisationType": _clean(rec.get("OrganisationType")),
+                "companyRegNo": _clean(rec.get("CompanyRegNo")),
+                "constitution": _clean(rec.get("Constitution")),
+            }
+        )
 
         for office in rec.get("Offices") or []:
             office_id = _clean(office.get("OfficeId"))

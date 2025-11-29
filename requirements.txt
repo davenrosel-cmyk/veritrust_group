@@ -1,3 +1,6 @@
 python-dateutil
 cryptography
 pydantic
+PyYAML
+pytest
+pytest-cov

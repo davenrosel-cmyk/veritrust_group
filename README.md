@@ -57,11 +57,13 @@ The pipeline executes in 6 main stages:
 ## 📁 Project Structure
 
 ```
-venv/
+veritrust-Tier0/
 ├── pipeline/                    # Main pipeline code
 │   ├── models/                  # Data models
 │   │   ├── jsonld_models.py     # JSON-LD models
 │   │   └── raw_models.py        # Raw data models
+│   ├── utils/                   # Utility modules
+│   │   └── config_loader.py     # Configuration loader
 │   ├── constants.py             # Constants and configuration
 │   ├── fetch_sra.py             # SRA data fetching
 │   ├── normalize.py             # Data normalization
@@ -69,6 +71,12 @@ venv/
 │   ├── jsonld_builder.py        # JSON-LD file generation
 │   ├── manifest_builder.py      # Manifest and signature generation
 │   └── run_pipeline.py          # Main pipeline execution
+│
+├── tests/                       # Test suite
+│   ├── test_normalize.py        # Normalization tests
+│   ├── test_jsonld_builder.py   # JSON-LD builder tests
+│   ├── test_manifest_builder.py # Manifest builder tests
+│   └── test_pipeline.py         # End-to-end pipeline tests
 │
 ├── input/                       # Input data
 │   └── response.txt             # SRA data file
@@ -79,10 +87,11 @@ venv/
 │   ├── normalized/              # Normalized data
 │   │   ├── firms.json
 │   │   ├── offices.json
+│   │   ├── firms.jsonld
+│   │   ├── dataset.jsonld
 │   │   └── manifest.jsonld
 │   ├── firms.jsonld             # JSON-LD output for firms
-│   ├── dataset.jsonld           # Complete JSON-LD output
-│   └── manifest.jsonld          # Manifest with signature
+│   └── dataset.jsonld           # Complete JSON-LD output
 │
 ├── ontology/                    # Ontology definitions
 │   └── veritrust-min.ttl        # VeriTrust minimal ontology
@@ -90,6 +99,8 @@ venv/
 ├── shapes/                      # SHACL Shapes
 │   └── tier0-shapes.ttl         # Tier-0 validation shapes
 │
+├── config.yaml                  # Configuration file
+├── pytest.ini                   # Pytest configuration
 ├── requirements.txt             # Python dependencies
 └── README.md                    # This file
 ```
@@ -109,23 +120,70 @@ venv/
 pip install -r requirements.txt
 ```
 
-Main dependencies:
+### Configuration
+
+The pipeline uses a flexible configuration system via `config.yaml` located in the project root. This replaces hardcoded values and makes the pipeline portable across different environments.
+
+**Configuration File (`config.yaml`):**
+
+```yaml
+input_file: "./input/response.txt"
+raw_output_dir: "./output/raw"
+normalized_output_dir: "./output/normalized"
+jsonld_firms: "./output/normalized/firms.jsonld"
+jsonld_dataset: "./output/normalized/dataset.jsonld"
+jsonld_manifest: "./output/normalized/manifest.jsonld"
+public_files_base: "https://api.veritrustgroup.org/files/"
+public_id_base: "https://api.veritrustgroup.org/id/"
+head_office_code: "HEAD OFFICE"
+```
+
+**Configuration Parameters:**
+- `input_file`: Path to the SRA input data file
+- `raw_output_dir`: Directory for storing raw data snapshots
+- `normalized_output_dir`: Directory for normalized intermediate files
+- `jsonld_firms`: Output path for firms JSON-LD file
+- `jsonld_dataset`: Output path for complete dataset JSON-LD file
+- `jsonld_manifest`: Output path for manifest JSON-LD file
+- `public_files_base`: Base URL for public file hosting
+- `public_id_base`: Base URL for entity identifiers
+- `head_office_code`: Code used to identify head offices
+
+**Note:** You can customize these paths for different deployment environments without modifying source code.
+
+### Main Dependencies
+
 - `pydantic`: Data validation and modeling
 - `python-dateutil`: Date processing
 - `cryptography`: Digital signatures and encryption
-
+- `PyYAML`: YAML configuration loader. Loads the `config.yaml` file used across the pipeline.
+- `pytest`: Testing framework. Provides unit tests, integration tests, and end‑to‑end pipeline verification.
+- `pytest-cov`: Coverage reporting. Generates coverage metrics for the entire project.
 ### Run Pipeline
 
+**Before running the pipeline, ensure:**
+1. `config.yaml` exists in the project root (see Configuration section above)
+2. Input data file exists at the path specified in `config.yaml` (default: `input/response.txt`)
+
+**Execute the pipeline:**
 ```bash
 python pipeline/run_pipeline.py
 ```
 
+The pipeline will:
+1. Load configuration from `config.yaml`
+2. Fetch and process SRA data
+3. Generate all output files in the configured directories
+4. Log progress and completion status
+
 ### Input Files
 
-Before execution, ensure the SRA data file exists at:
+Before execution, ensure the SRA data file exists at the path specified in `config.yaml`:
 ```
 input/response.txt
 ```
+
+**Note:** The input file path can be customized in `config.yaml` for different environments.
 
 ### Output Files
 
@@ -151,6 +209,20 @@ After successful execution, the following files are generated in the `output/` d
 ---
 
 ## 🔧 Technical Details
+
+### Configuration System
+
+The pipeline uses a flexible YAML-based configuration system (`config.yaml`) that replaces hardcoded values. This makes the pipeline:
+
+- **Portable**: Easy to deploy across different environments
+- **Maintainable**: Configuration changes don't require code modifications
+- **Testable**: Tests can use temporary configuration files
+
+The configuration is loaded via `pipeline/utils/config_loader.py`, which:
+- Loads YAML configuration from `config.yaml`
+- Validates file existence
+- Returns configuration as a dictionary
+- Supports future environment variable overrides
 
 ### Data Models
 
@@ -222,6 +294,104 @@ python pipeline/run_pipeline.py
 
 ## 🧪 Testing and Validation
 
+The project includes a comprehensive test suite covering all critical components of the pipeline. Tests are located in the `tests/` directory and use `pytest` as the testing framework.
+
+### Running Tests
+
+**Run all tests with coverage:**
+```bash
+pytest --cov=. --cov-report=term
+```
+
+**Run specific test files:**
+```bash
+# Test normalization logic
+pytest tests/test_normalize.py
+
+# Test JSON-LD builder
+pytest tests/test_jsonld_builder.py
+
+# Test manifest builder
+pytest tests/test_manifest_builder.py
+
+# Test end-to-end pipeline
+pytest tests/test_pipeline.py
+```
+
+**Run tests in verbose mode:**
+```bash
+pytest -v
+```
+
+### Test Suite Overview
+
+#### 1. `test_normalize.py` - Normalization Tests
+Tests the core normalization logic in `normalize.py`:
+- Name cleaning and standardization
+- Address construction and formatting
+- Identifier extraction and validation
+- Head office identification
+- Edge cases and data transformation accuracy
+
+**Key Test Cases:**
+- Basic record normalization
+- Whitespace and punctuation handling
+- Address field mapping
+- Head office detection
+
+#### 2. `test_jsonld_builder.py` - JSON-LD Builder Tests
+Tests JSON-LD generation in `jsonld_builder.py`:
+- Canonical JSON hash computation (deterministic)
+- JSON-LD graph structure validation
+- Schema.org compliance
+- File writing operations
+
+**Key Test Cases:**
+- Hash determinism (same data produces same hash)
+- Graph structure correctness
+- Safe file writing
+
+#### 3. `test_manifest_builder.py` - Manifest Builder Tests
+Tests manifest generation in `manifest_builder.py`:
+- Manifest file creation
+- Distribution metadata
+- Context and structure validation
+
+**Key Test Cases:**
+- Manifest file generation
+- Distribution array structure
+- JSON-LD context presence
+
+#### 4. `test_pipeline.py` - End-to-End Pipeline Tests
+Tests the complete pipeline workflow:
+- Full pipeline execution
+- Configuration loading
+- Output file generation
+- Integration between all stages
+
+**Key Test Cases:**
+- End-to-end pipeline run with temporary config
+- Output file existence verification
+- Isolated test environment (no external dependencies)
+
+### Test Configuration
+
+The test suite is configured via `pytest.ini`:
+```ini
+[pytest]
+addopts = -q
+python_files = test_*.py
+pythonpath = .
+```
+
+### Test Coverage
+
+The test suite focuses on:
+- **Edge Cases**: Handling of unusual or boundary data
+- **Data Transformation Accuracy**: Ensuring normalization and JSON-LD conversion are correct
+- **Integration**: Verifying all pipeline stages work together
+- **Isolation**: Tests run independently without external dependencies
+
 ### Data Integrity Checks
 
 After pipeline execution, you can:
@@ -229,6 +399,7 @@ After pipeline execution, you can:
 1. **Check Manifest File**: Verify hash and signature
 2. **Validate JSON-LD**: Use JSON-LD validation tools
 3. **SHACL Validation**: Run SHACL validation on output data
+4. **Run Test Suite**: Execute all tests to verify pipeline integrity
 
 ---
 

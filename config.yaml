@@ -1,0 +1,15 @@
+
+
+input_file: "./input/response.txt"
+
+raw_output_dir: "./output/raw"
+normalized_output_dir: "./output/normalized"
+
+jsonld_firms: "./output/normalized/firms.jsonld"
+jsonld_dataset: "./output/normalized/dataset.jsonld"
+jsonld_manifest: "./output/normalized/manifest.jsonld"
+
+public_files_base: "https://api.veritrustgroup.org/files/"
+public_id_base: "https://api.veritrustgroup.org/id/"
+
+head_office_code: "HEAD OFFICE"
