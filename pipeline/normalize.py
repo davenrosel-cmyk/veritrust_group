@@ -1,3 +1,15 @@
+
+"""
+Normalize raw SRA firm/office records into Tier‑0 canonical format.
+
+Includes:
+    - name cleanup
+    - address construction
+    - identifier preservation
+    - head office identification
+    - whitespace, punctuation, casing normalisation
+"""
+
 import logging
 from typing import List, Tuple
 

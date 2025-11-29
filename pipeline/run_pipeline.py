@@ -1,3 +1,14 @@
+"""
+Orchestrates Tier‑0 end‑to‑end workflow in strict sequence:
+
+1. fetch
+2. normalise
+3. validate
+4. build JSON‑LD
+5. build manifest
+6. write AI discovery files
+"""
+
 import json
 import logging
 from pathlib import Path

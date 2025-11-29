@@ -1,3 +1,13 @@
+"""
+Validate normalized records using SHACL‑Lite constraints:
+    - mandatory fields
+    - datatype checks
+    - no business rules
+
+Records failing validation are excluded but logged.
+"""
+
+
 import logging
 from typing import List, Tuple
 

@@ -1,3 +1,13 @@
+"""
+Build dataset manifest:
+    - canonical JSON serialization
+    - SHA‑256 hashing
+    - optional RSA signature
+    - atomic file write
+
+This is the only signed file in Tier‑0.
+"""
+
 import os
 import json
 import logging
@@ -7,6 +17,7 @@ from datetime import datetime, timezone
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+
 
 
 
@@ -63,13 +74,15 @@ def build_manifest_and_sign(
 ) -> None:
     """
     Build Tier‑0 manifest.jsonld.
-    - Lists firms.jsonld & dataset.jsonld with SHA‑256 + size
-    - Adds RSA-SHA256 signature IF private key is provided
+    - canonical JSON serialization (Phase 4)
+    - SHA‑256 hashing
+    - optional RSA signature
+    - atomic file write (Phase 3)
     """
 
     now_iso = datetime.now(timezone.utc).isoformat()
 
-  
+    
     files_info = []
 
     for p in [firms_path, dataset_path]:
@@ -79,7 +92,7 @@ def build_manifest_and_sign(
 
         files_info.append(
             {
-                "path": p.name,     
+                "path": p.name,
                 "sha256": _file_sha256(p),
                 "sizeInBytes": p.stat().st_size,
             }
@@ -98,33 +111,45 @@ def build_manifest_and_sign(
         "distribution": files_info,
     }
 
+   
+   
+    canonical_json = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        separators=(",", ":"),   
+        sort_keys=True
+    ).encode("utf-8")
 
-    # Optional signature
+   
+    # Optional RSA signing
    
     private_key = _try_load_private_key()
 
     if private_key:
-        compact_bytes = json.dumps(
-            manifest,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode("utf-8")
-
-        signature_hex = _sign_bytes(private_key, compact_bytes)
-
+        signature_hex = _sign_bytes(private_key, canonical_json)
         manifest["vt:signature"] = {
             "algorithm": "RSA-SHA256",
             "value": signature_hex,
         }
 
    
+    tmp_path = manifest_output_path.with_suffix(manifest_output_path.suffix + ".tmp")
+
     try:
         manifest_output_path.parent.mkdir(parents=True, exist_ok=True)
-        with manifest_output_path.open("w", encoding="utf-8") as f:
+
+        with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-        logging.info("✔ manifest.jsonld written → %s", manifest_output_path)
+        tmp_path.replace(manifest_output_path)
+
+        logging.info("✔ manifest.jsonld written atomically → %s", manifest_output_path)
 
     except Exception as e:
         logging.error("❌ Failed to write manifest.jsonld: %s", e)
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except:
+                pass
         raise
