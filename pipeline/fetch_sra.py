@@ -1,27 +1,39 @@
-
 """
-Fetch SRA public dataset.
-Downloads JSON from SRA endpoint, writes raw dump to output/raw
-for audit and passes data to the normalisation stage.
+Fetch and load the SRA public dataset (Tier‑0 raw acquisition).
 
-Tier‑0 rule:
-    - No enrichments
-    - No transformations except saving raw
+Responsibilities:
+    - deterministic loading of local SRA JSON input
+    - accept both dict-based ("Organisations": [...]) and list-based inputs
+    - write raw dump atomically for audit (Phase‑3)
+    - perform no transformation, no enrichment
+
+Validation:
+    - basic structural checks only
+    - deep validation occurs in normalisation stage (Pydantic)
+
+This module is intentionally minimal.
 """
 
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
-from typing import List
-
-from pipeline.models.raw_models import RawFirmRecord
+from typing import List, Union
 
 
-def _load_local_file(path: Path) -> dict:
+def _load_json(path: Path) -> Union[dict, list]:
     """
-    Safe JSON reader with explicit error handling.
-    Phase 3: strengthened I/O reliability (read side).
+    Safely load JSON from disk with explicit exception handling.
+
+    Args:
+        path: Path to the input JSON file.
+
+    Returns:
+        Parsed Python object (dict or list).
+
+    Raises:
+        FileNotFoundError
+        json.JSONDecodeError
+        OSError
     """
     if not path.exists():
         raise FileNotFoundError(f"SRA input file not found: {path}")
@@ -31,62 +43,78 @@ def _load_local_file(path: Path) -> dict:
             return json.load(f)
 
     except json.JSONDecodeError as e:
-        logging.error(f"❌ Failed to parse JSON from {path}: {e}")
+        logging.error(f"❌ Invalid JSON in {path}: {e}")
         raise
 
-    except Exception as e:
+    except OSError as e:
         logging.error(f"❌ Failed to read file {path}: {e}")
         raise
 
 
-
-def fetch_sra_from_file(input_file: Path, save_path: Path) -> list[dict]:
+def fetch_sra_from_file(input_file: Path, save_path: Path) -> List[dict]:
     """
-    Load local SRA response (response.txt).
-    Supports:
+    Load SRA dataset from a local JSON file.
+
+    Accepts:
         A) {"Organisations": [ ... ]}
-        B) [ ... ]   (test fixture / simplified files)
+        B) [ ... ]   (used in testing fixtures)
 
-    Saves raw JSON atomically to save_path.
+    Writes an atomic raw dump to save_path for audit.
+
+    Args:
+        input_file: Local SRA JSON dump.
+        save_path: Path where raw canonical dump will be written atomically.
+
+    Returns:
+        The list of raw organisation records.
+
+    Raises:
+        ValueError: if structure is unexpected.
+        OSError: file write errors.
     """
 
-    logging.info("Loading SRA dataset from: %s", input_file)
+    logging.info("Fetching SRA dataset from %s", input_file)
 
-    data = _load_local_file(input_file)
+    data = _load_json(input_file)
 
-    # A) If dict with Organisations
+  
     if isinstance(data, dict):
         organisations = data.get("Organisations", [])
-
         if not isinstance(organisations, list):
-            raise ValueError("Organisations is not a list in SRA input file")
+            raise ValueError("Expected Organisations to be a list")
 
-    # B) If test provided a list directly
+    
     elif isinstance(data, list):
         organisations = data
 
     else:
-        raise ValueError(f"Unexpected SRA input format: {type(data)}")
+        raise ValueError(f"Unexpected SRA input type: {type(data)}")
 
-    # Atomic save
+
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = save_path.with_suffix(save_path.suffix + ".tmp")
+    tmp_path = save_path.with_suffix(save_path.suffix + ".tmp")
 
-    with tmp.open("w", encoding="utf-8") as f:
-        json.dump(organisations, f, ensure_ascii=False, indent=2)
+    try:
+        with tmp_path.open("w", encoding="utf-8") as f:
+            json.dump(organisations, f, ensure_ascii=False, indent=2)
 
-    tmp.replace(save_path)
+        tmp_path.replace(save_path)
+        logging.info("✔ Atomic raw dump written → %s", save_path)
+
+    except OSError as e:
+        logging.error(f"❌ Failed to write raw dump {save_path}: {e}")
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise
 
     return organisations
-
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    input_path = Path("input/response.txt")
-    today = datetime.now().strftime("%Y%m%d")
-    raw_path = Path(f"output/raw/sra-{today}.json")
+    test_path = Path("input/response.txt")
+    out = Path("output/raw/test_raw.json")
 
-    records = fetch_sra_from_file(input_path, raw_path)
-    print(f"Loaded {len(records)} records")
+    recs = fetch_sra_from_file(test_path, out)
+    print(f"Loaded {len(recs)} records")

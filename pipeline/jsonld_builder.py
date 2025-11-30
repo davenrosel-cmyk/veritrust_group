@@ -1,37 +1,33 @@
 """
-Build Schema.org + VeriTrust JSON‑LD entities using Pydantic models.
-
-Outputs:
-    - firms.jsonld (entity collection)
-    - dataset.jsonld (dataset summary)
+Build canonical VeriTrust Tier‑0 JSON‑LD output.
 
 Implements:
-    - deterministic JSON-LD
-    - strict field typing
-    - canonical IRIs
-   
+    - Pydantic-based strict typing (validated upstream in normalize.py)
+    - canonical IRIs (firm + office)
+    - deterministic JSON‑LD serialization (Phase 4)
+    - atomic write (Phase 3)
+    - absolute imports
+    - zero redundant validation
+
+Inputs:
+    firms   : List[FirmModel]
+    offices : List[OfficeModel]
+
+Outputs:
+    firms.jsonld   : canonical entity graph (firms + offices)
+    dataset.jsonld : dataset descriptor for public consumption
 """
 
 import json
 import logging
 import hashlib
 from pathlib import Path
-from typing import List, Dict
 from datetime import datetime, timezone
-from collections import defaultdict
+from typing import List, Dict
+
 from pydantic import ValidationError
 
 from pipeline.utils.config_loader import load_config
-
-cfg = load_config()
-
-PUBLIC_FILES_BASE = cfg["public_files_base"]
-PUBLIC_ID_BASE = cfg["public_id_base"]
-
-
-# PUBLIC_FILES_BASE = "https://api.veritrustgroup.org/files/"
-# PUBLIC_ID_BASE = "https://api.veritrustgroup.org/id/"
-
 from pipeline.models.jsonld_models import (
     PostalAddressModel,
     OfficeModel,
@@ -40,6 +36,12 @@ from pipeline.models.jsonld_models import (
     FirmLD,
 )
 
+cfg = load_config()
+
+PUBLIC_FILES_BASE = cfg.public_files_base
+PUBLIC_ID_BASE = cfg.public_id_base
+
+
 VT_CONTEXT = {
     "@vocab": "https://veritrustgroup.org/def/tier0/",
     "schema": "https://schema.org/",
@@ -47,110 +49,169 @@ VT_CONTEXT = {
 }
 
 
-def compute_canonical_json_hash(data: dict) -> str:
-    canonical_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
-def _build_firm_iri(sra_id: str) -> str:
+def _iri_firm(sra_id: str) -> str:
     return f"{PUBLIC_ID_BASE}firm/{sra_id}"
 
 
-def _build_office_iri(office_id: str) -> str:
+def _iri_office(office_id: str) -> str:
     return f"{PUBLIC_ID_BASE}office/{office_id}"
 
 
-def _public_url(local_path: Path) -> str:
-    return f"{PUBLIC_FILES_BASE}{local_path.name}"
+def _public_url(path: Path) -> str:
+    """Map a local file path → Railway public URL."""
+    return f"{PUBLIC_FILES_BASE}{path.name}"
+
+
+
+
+def compute_canonical_json_hash(data: dict) -> str:
+    """
+    Deterministic Phase‑4 hash:
+      - sorted keys
+      - minified separators
+      - UTF‑8 bytes
+    """
+    serialized = json.dumps(
+        data,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 
 
 def build_office_entity(model: OfficeModel) -> Dict:
-    office_iri = _build_office_iri(model.officeId)
+    """
+    Convert OfficeModel → JSON‑LD entity (OfficeLD).
+    """
+    office_iri = _iri_office(model.officeId)
 
-    return OfficeLD(
+    office_ld = OfficeLD(
         **{
             "@id": office_iri,
             "officeId": model.officeId,
-            "firm": {"@id": _build_firm_iri(model.firmSraId)},
+            "firm": {"@id": _iri_firm(model.firmSraId)},
             "isHeadOffice": model.isHeadOffice,
             "address": model.address.model_dump(),
             "sameAs": f"https://www.sra.org.uk/consumers/register/office/?id={model.officeId}",
         }
-    ).model_dump(by_alias=True)
+    )
+    return office_ld.model_dump(by_alias=True)
 
 
-def build_firm_entity(model: FirmModel, offices_jsonld: List[Dict]) -> Dict:
-    firm_iri = _build_firm_iri(model.sraId)
+def build_firm_entity(model: FirmModel, office_entities: List[Dict]) -> Dict:
+    """
+    Convert FirmModel → JSON‑LD entity (FirmLD).
+    """
+    firm_iri = _iri_firm(model.sraId)
 
-    return FirmLD(
+    firm_ld = FirmLD(
         **{
             "@id": firm_iri,
             "name": model.name,
+            "legalName": model.name,
             "regulatoryStatus": model.regulatoryStatus,
             "sraId": model.sraId,
-            "offices": offices_jsonld,
-            "sameAs": f"https://www.sra.org.uk/consumers/register/organisation/?id={model.sraId}",
+            "offices": office_entities,
+            "sameAs": (
+                f"https://www.sra.org.uk/consumers/register/organisation/?id={model.sraId}"
+            ),
         }
-    ).model_dump(by_alias=True)
+    )
+
+    return firm_ld.model_dump(by_alias=True)
 
 
-def build_jsonld_graph(firms: List[Dict], offices: List[Dict]) -> Dict:
-    offices_by_firm = defaultdict(list)
 
-    validated_offices = []
-    for o in offices:
-        try:
-            office_model = OfficeModel(**o)
-            validated_offices.append(office_model)
-            offices_by_firm[office_model.firmSraId].append(office_model)
-        except (ValidationError, ValueError, TypeError) as e:
-            logging.warning(f"Skipping invalid office record: {e}")
+def build_jsonld_graph(
+    firms: List[FirmModel],
+    offices: List[OfficeModel],
+) -> Dict:
+    """
+    Build the full canonical JSON‑LD graph.
 
-    validated_firms = []
-    for f in firms:
-        try:
-            firm_model = FirmModel(**f)
-            validated_firms.append(firm_model)
-        except (ValidationError, ValueError, TypeError) as e:
-            logging.warning(f"Skipping invalid firm record: {e}")
+    NOTE:
+        This function receives *validated Pydantic models*.
+        If any record is invalid, normalize.py should have already rejected it.
+    """
+
+    offices_by_firm: Dict[str, List[OfficeModel]] = {}
+
+    for off in offices:
+        offices_by_firm.setdefault(off.firmSraId, []).append(off)
 
     graph = []
 
-    for firm in validated_firms:
-        firm_offices = [build_office_entity(o) for o in offices_by_firm.get(firm.sraId, [])]
-        firm_entity = build_firm_entity(firm, firm_offices)
+    for firm in firms:
+        firm_office_entities = [
+            build_office_entity(o)
+            for o in offices_by_firm.get(firm.sraId, [])
+        ]
+
+        firm_entity = build_firm_entity(firm, firm_office_entities)
 
         graph.append(firm_entity)
-        graph.extend(firm_offices)
+        graph.extend(firm_office_entities)
 
-    return {"@context": VT_CONTEXT, "@graph": graph}
+    return {
+        "@context": VT_CONTEXT,
+        "@graph": graph,
+    }
 
 
-def _safe_write_json(path: Path, data: Dict):
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
+
+
+def _atomic_write_json(path: Path, data: Dict):
+    """
+    Atomic JSON writer:
+      - write to <path>.tmp
+      - replace() final
+    """
+    tmp = path.with_suffix(path.suffix + ".tmp")
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with tmp_path.open("w", encoding="utf-8") as f:
+        with tmp.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        tmp_path.replace(path)
-        logging.info(f"✔ Atomically written JSON → {path}")
+        tmp.replace(path)
+        logging.info(f"✔ Atomically written → {path}")
 
-    except (OSError, IOError) as e:
-        logging.error(f"❌ Failed to write JSON file {path}: {e}")
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
+    except OSError as e:
+        logging.error(f"Failed to write JSON file: {path} | {e}")
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
         raise
 
 
-def build_and_save_jsonld(firms, offices, firms_output_path: Path, dataset_output_path: Path):
+
+
+def build_and_save_jsonld(
+    firms: List[FirmModel],
+    offices: List[OfficeModel],
+    firms_output_path: Path,
+    dataset_output_path: Path,
+):
+    """
+    Generate and atomically write:
+        - firms.jsonld
+        - dataset.jsonld
+
+    Both files include canonical Phase‑4 SHA‑256 hashes.
+    """
+
+    
     firms_doc = build_jsonld_graph(firms, offices)
     firms_hash = compute_canonical_json_hash(firms_doc)
     logging.info(f"✔ firms.jsonld canonical SHA‑256 = {firms_hash}")
 
-    _safe_write_json(firms_output_path, firms_doc)
+    _atomic_write_json(firms_output_path, firms_doc)
+
 
     now_iso = datetime.now(timezone.utc).isoformat()
     public_url = _public_url(firms_output_path)
@@ -159,12 +220,15 @@ def build_and_save_jsonld(firms, offices, firms_output_path: Path, dataset_outpu
         "@context": "https://schema.org/",
         "@id": "https://api.veritrustgroup.org/dataset/tier0-sra",
         "@type": "Dataset",
-        "name": "VeriTrust Tier-0 SRA Canonical Dataset",
+        "name": "VeriTrust Tier‑0 SRA Canonical Dataset",
         "description": (
             "Nightly canonical transformation of SRA public organisation data "
-            "into AI-ready JSON-LD."
+            "into AI‑ready JSON‑LD."
         ),
-        "creator": {"@type": "Organization", "name": "VeriTrust Group Limited"},
+        "creator": {
+            "@type": "Organization",
+            "name": "VeriTrust Group Limited",
+        },
         "dateModified": now_iso,
         "distribution": [
             {
@@ -173,9 +237,12 @@ def build_and_save_jsonld(firms, offices, firms_output_path: Path, dataset_outpu
                 "encodingFormat": "application/ld+json",
             }
         ],
+        "canonicalSha256": firms_hash,
     }
 
     dataset_hash = compute_canonical_json_hash(dataset_doc)
     logging.info(f"✔ dataset.jsonld canonical SHA‑256 = {dataset_hash}")
 
-    _safe_write_json(dataset_output_path, dataset_doc)
+    _atomic_write_json(dataset_output_path, dataset_doc)
+
+    logging.info("✔ JSON‑LD build complete.")

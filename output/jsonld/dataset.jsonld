@@ -1,0 +1,20 @@
+{
+  "@context": "https://schema.org/",
+  "@id": "https://api.veritrustgroup.org/dataset/tier0-sra",
+  "@type": "Dataset",
+  "name": "VeriTrust Tier‑0 SRA Canonical Dataset",
+  "description": "Nightly canonical transformation of SRA public organisation data into AI‑ready JSON‑LD.",
+  "creator": {
+    "@type": "Organization",
+    "name": "VeriTrust Group Limited"
+  },
+  "dateModified": "2025-11-30T08:18:07.427490+00:00",
+  "distribution": [
+    {
+      "@type": "DataDownload",
+      "contentUrl": "https://api.veritrustgroup.org/files/firms.jsonld",
+      "encodingFormat": "application/ld+json"
+    }
+  ],
+  "canonicalSha256": "56e94f611b3a5ef219c04ccd7bb0164f7ef5d728f15cfba84579339fc5471ada"
+}
