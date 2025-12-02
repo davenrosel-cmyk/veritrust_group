@@ -24,7 +24,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Dict
-
+from pipeline.utils.atomic_writer import atomic_write_json
 from pydantic import ValidationError
 
 from pipeline.utils.config_loader import load_config
@@ -164,54 +164,18 @@ def build_jsonld_graph(
 
 
 
-
-def _atomic_write_json(path: Path, data: Dict):
-    """
-    Atomic JSON writer:
-      - write to <path>.tmp
-      - replace() final
-    """
-    tmp = path.with_suffix(path.suffix + ".tmp")
-
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        with tmp.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        tmp.replace(path)
-        logging.info(f"✔ Atomically written → {path}")
-
-    except OSError as e:
-        logging.error(f"Failed to write JSON file: {path} | {e}")
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
-        raise
-
-
-
-
 def build_and_save_jsonld(
     firms: List[FirmModel],
     offices: List[OfficeModel],
     firms_output_path: Path,
     dataset_output_path: Path,
 ):
-    """
-    Generate and atomically write:
-        - firms.jsonld
-        - dataset.jsonld
 
-    Both files include canonical Phase‑4 SHA‑256 hashes.
-    """
-
-    
     firms_doc = build_jsonld_graph(firms, offices)
     firms_hash = compute_canonical_json_hash(firms_doc)
     logging.info(f"✔ firms.jsonld canonical SHA‑256 = {firms_hash}")
 
-    _atomic_write_json(firms_output_path, firms_doc)
-
+    atomic_write_json(firms_output_path, firms_doc)
 
     now_iso = datetime.now(timezone.utc).isoformat()
     public_url = _public_url(firms_output_path)
@@ -243,6 +207,9 @@ def build_and_save_jsonld(
     dataset_hash = compute_canonical_json_hash(dataset_doc)
     logging.info(f"✔ dataset.jsonld canonical SHA‑256 = {dataset_hash}")
 
-    _atomic_write_json(dataset_output_path, dataset_doc)
+    atomic_write_json(dataset_output_path, dataset_doc)
 
     logging.info("✔ JSON‑LD build complete.")
+
+
+

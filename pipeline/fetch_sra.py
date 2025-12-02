@@ -18,7 +18,7 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Union
-
+from pipeline.utils.atomic_writer import atomic_write_json
 
 def _load_json(path: Path) -> Union[dict, list]:
     """
@@ -90,31 +90,33 @@ def fetch_sra_from_file(input_file: Path, save_path: Path) -> List[dict]:
     else:
         raise ValueError(f"Unexpected SRA input type: {type(data)}")
 
-
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = save_path.with_suffix(save_path.suffix + ".tmp")
-
-    try:
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(organisations, f, ensure_ascii=False, indent=2)
-
-        tmp_path.replace(save_path)
-        logging.info("✔ Atomic raw dump written → %s", save_path)
-
-    except OSError as e:
-        logging.error(f"❌ Failed to write raw dump {save_path}: {e}")
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
-        raise
+    atomic_write_json(save_path, organisations)
 
     return organisations
+#     save_path.parent.mkdir(parents=True, exist_ok=True)
+#     tmp_path = save_path.with_suffix(save_path.suffix + ".tmp")
+
+#     try:
+#         with tmp_path.open("w", encoding="utf-8") as f:
+#             json.dump(organisations, f, ensure_ascii=False, indent=2)
+
+#         tmp_path.replace(save_path)
+#         logging.info("✔ Atomic raw dump written → %s", save_path)
+
+#     except OSError as e:
+#         logging.error(f"❌ Failed to write raw dump {save_path}: {e}")
+#         if tmp_path.exists():
+#             tmp_path.unlink(missing_ok=True)
+#         raise
+
+#     return organisations
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+# if __name__ == "__main__":
+#     logging.basicConfig(level=logging.INFO)
 
-    test_path = Path("input/response.txt")
-    out = Path("output/raw/test_raw.json")
+#     test_path = Path("input/response.txt")
+#     out = Path("output/raw/test_raw.json")
 
-    recs = fetch_sra_from_file(test_path, out)
-    print(f"Loaded {len(recs)} records")
+#     recs = fetch_sra_from_file(test_path, out)
+#     print(f"Loaded {len(recs)} records")

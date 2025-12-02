@@ -18,7 +18,7 @@ import logging
 import hashlib
 from pathlib import Path
 from datetime import datetime, timezone
-
+from pipeline.utils.atomic_writer import atomic_write_json
 from cryptography.exceptions import InvalidKey, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -90,63 +90,15 @@ def _sign_bytes(private_key, canonical_bytes: bytes) -> str:
         raise
 
 
-def _atomic_write_json(path: Path, content: dict):
-    """
-    Atomically write JSON:
-      - write to <path>.tmp
-      - replace() → final target
-
-    Args:
-        path: final JSON output path
-        content: JSON-serializable dict
-    """
-    tmp = path.with_suffix(path.suffix + ".tmp")
-
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        with tmp.open("w", encoding="utf-8") as f:
-            json.dump(content, f, ensure_ascii=False, indent=2)
-
-        tmp.replace(path)
-        logging.info("✔ Atomic write → %s", path)
-
-    except OSError as e:
-        logging.error("❌ Failed to write manifest: %s", e)
-
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
-
-        raise
-
-
-
-
 def build_manifest_and_sign(
     firms_path: Path,
     dataset_path: Path,
     manifest_output_path: Path,
 ) -> None:
-    """
-    Build the Tier‑0 manifest.jsonld file and optionally sign it.
-
-    Args:
-        firms_path: Path to firms.jsonld
-        dataset_path: Path to dataset.jsonld
-        manifest_output_path: Output path for manifest.jsonld
-
-    Produces:
-        manifest.jsonld containing:
-            - canonical file metadata
-            - SHA‑256 hashes
-            - optional RSA signature
-            - deterministic canonical JSON structure
-    """
 
     now_iso = datetime.now(timezone.utc).isoformat()
 
     files_info = []
-
 
     for p in [firms_path, dataset_path]:
         if not p.exists():
@@ -173,7 +125,6 @@ def build_manifest_and_sign(
         "distribution": files_info,
     }
 
-    
     canonical_json = json.dumps(
         manifest,
         ensure_ascii=False,
@@ -181,7 +132,6 @@ def build_manifest_and_sign(
         sort_keys=True,
     ).encode("utf-8")
 
-  
     private_key = _try_load_private_key()
 
     if private_key:
@@ -191,7 +141,6 @@ def build_manifest_and_sign(
             "value": signature_hex,
         }
 
-
-    _atomic_write_json(manifest_output_path, manifest)
+    atomic_write_json(manifest_output_path, manifest)
 
     logging.info("✔ manifest.jsonld built and saved → %s", manifest_output_path)
