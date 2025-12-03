@@ -1,0 +1,1 @@
+exec(open("pipeline/run_pipeline.py").read())
