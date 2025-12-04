@@ -94,7 +94,7 @@ def fetch_sra_from_file(input_file: Path, save_path: Path , fetch_url: str, subs
     # retrievedAt
     # theAddedtext = f'\n/* Retrieved at {formatted} */\n' + theText
 
-    strrr = f""" "retrievedAt":"{formatted}" ,  """
+    strrr = f""" "retrievedAt":"{formatted}" , "source": "SRA", """
 
     # new_string = original[:1] + insert + original[1:]
     theText = theText[:1] + strrr + theText[1:]
