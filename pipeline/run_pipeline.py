@@ -45,6 +45,9 @@ def run():
     jsonld_dataset_path = Path(cfg.jsonld_dataset)
     jsonld_manifest_path = Path(cfg.jsonld_manifest)
 
+    fetch_url = cfg.fetch_url
+    subscription_key = cfg.subscription_key
+
     raw_output_dir.mkdir(parents=True, exist_ok=True)
     normalized_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +55,7 @@ def run():
     raw_output_path = raw_output_dir / f"sra-{today}.json"
 
     logging.info("Step 1 — Fetching records…")
-    records = fetch_sra_from_file(input_path, raw_output_path)
+    records = fetch_sra_from_file(input_path, raw_output_path , fetch_url, subscription_key)
 
     logging.info("Step 2 — Normalising records…")
     firms, offices = normalise_records(records)

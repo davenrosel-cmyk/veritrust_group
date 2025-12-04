@@ -19,6 +19,8 @@ import logging
 from pathlib import Path
 from typing import List, Union
 from pipeline.utils.atomic_writer import atomic_write_json
+import requests
+from datetime import datetime, timezone
 
 def _load_json(path: Path) -> Union[dict, list]:
     """
@@ -35,6 +37,8 @@ def _load_json(path: Path) -> Union[dict, list]:
         json.JSONDecodeError
         OSError
     """
+
+
     if not path.exists():
         raise FileNotFoundError(f"SRA input file not found: {path}")
 
@@ -51,7 +55,7 @@ def _load_json(path: Path) -> Union[dict, list]:
         raise
 
 
-def fetch_sra_from_file(input_file: Path, save_path: Path) -> List[dict]:
+def fetch_sra_from_file(input_file: Path, save_path: Path , fetch_url: str, subscription_key: str) -> List[dict]:
     """
     Load SRA dataset from a local JSON file.
 
@@ -72,6 +76,33 @@ def fetch_sra_from_file(input_file: Path, save_path: Path) -> List[dict]:
         ValueError: if structure is unexpected.
         OSError: file write errors.
     """
+
+    now_gmt = datetime.now(timezone.utc)
+    formatted = now_gmt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    
+    headers = {
+        "Ocp-Apim-Subscription-Key":subscription_key
+        #"date":"Wed, 03 Dec 2025 21:04:18 GMT"
+        # "date":formatted
+    }
+
+    response = requests.get(fetch_url, headers=headers)
+
+    # theHeader = response.headers
+    # resDate = theHeader.get("Date", "")
+    theText = response.text  
+    # retrievedAt
+    # theAddedtext = f'\n/* Retrieved at {formatted} */\n' + theText
+
+    strrr = f""" "retrievedAt":"{formatted}" ,  """
+
+    # new_string = original[:1] + insert + original[1:]
+    theText = theText[:1] + strrr + theText[1:]
+
+
+
+    with open(input_file, "w", encoding="utf-8") as file:
+        file.write(theText)
 
     logging.info("Fetching SRA dataset from %s", input_file)
 

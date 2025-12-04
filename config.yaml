@@ -17,3 +17,6 @@ public_files_base: "https://api.veritrustgroup.org/files/"
 public_id_base: "https://api.veritrustgroup.org/id/"
 
 head_office_code: "HEAD OFFICE"
+
+fetch_url: "https://sra-prod-apim.azure-api.net/datashare/api/V1/organisation/GetAll"
+subscription_key: "cd04858f8a044da8baacda6aa6aaaed4"

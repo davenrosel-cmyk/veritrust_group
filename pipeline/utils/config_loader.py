@@ -35,6 +35,9 @@ class PipelineConfig(BaseModel):
 
     head_office_code: str = "HEAD OFFICE"
 
+    fetch_url: str = Field(..., description="URL to fetch SRA dataset from")
+    subscription_key: str = Field(..., description="Subscription key for SRA API")
+
 
 def _apply_env_overrides(cfg: dict) -> dict:
     """
